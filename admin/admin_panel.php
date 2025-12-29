@@ -134,14 +134,22 @@ $completadas = count(array_filter($cartas, fn($c) => $c['status'] == 'COMPLETADO
                         <?= $c['tech_name'] ? '👤 '.$c['tech_name'] : '<span style="color:#aaa;">--</span>' ?>
                     </td>
                     <td>
-                        <span class="badge <?= $c['status'] == 'COMPLETADO' ? 'badge-done' : 'badge-pending' ?>">
+                        <span class="badge <?= ($c['status'] == 'COMPLETADO' || $c['status'] == 'SYNCED') ? 'badge-done' : 'badge-pending' ?>">
                             <?= $c['status'] ?>
                         </span>
                     </td>
                     <td>
-                        <button class="btn-view" onclick='verTarjeta(<?= json_encode($c) ?>)'>
-                            👁️
-                        </button>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-view" onclick='verTarjeta(<?= json_encode($c) ?>)' title="Ver Slip / Código de Barras">
+                                🎫
+                            </button>
+
+                            <?php if($c['status'] == 'COMPLETADO' || $c['status'] == 'SYNCED' || $c['status'] == 'EN_REVISION'): ?>
+                                <a href="ver_carta.php?id=<?= $c['id'] ?>" class="btn-view" style="background:#28a745; text-decoration:none;" title="Ver Fotos y Mensaje">
+                                    👁️
+                                </a>
+                            <?php endif; ?>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
