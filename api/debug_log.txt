@@ -374,3 +374,54 @@ FILES: Array
 
 )
 
+--- NUEVO INTENTO 2025-12-31 03:45:50 ---
+POST: Array
+(
+    [server_id] => 59
+    [message] => Hoy tyii8
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_59.png
+            [full_path] => drawing_59.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\phpE5AB.tmp
+            [error] => 0
+            [size] => 87981
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpE5BC.tmp
+            [error] => 0
+            [size] => 652949
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpE668.tmp
+            [error] => 0
+            [size] => 671130
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpE715.tmp
+            [error] => 0
+            [size] => 776150
+        )
+
+)
+
