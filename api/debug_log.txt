@@ -221,3 +221,156 @@ FILES: Array
 
 )
 
+--- NUEVO INTENTO 2025-12-31 00:30:09 ---
+POST: Array
+(
+    [server_id] => 22
+    [message] => Hola hola
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_22.png
+            [full_path] => drawing_22.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\phpB493.tmp
+            [error] => 0
+            [size] => 78931
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpB649.tmp
+            [error] => 0
+            [size] => 515045
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpB9E4.tmp
+            [error] => 0
+            [size] => 659645
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpBF06.tmp
+            [error] => 0
+            [size] => 409413
+        )
+
+)
+
+--- NUEVO INTENTO 2025-12-31 03:11:23 ---
+POST: Array
+(
+    [server_id] => 21
+    [message] => Corregida ok
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_21.png
+            [full_path] => drawing_21.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\php589C.tmp
+            [error] => 0
+            [size] => 59558
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php58DC.tmp
+            [error] => 0
+            [size] => 660844
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php5A44.tmp
+            [error] => 0
+            [size] => 637124
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php5B8D.tmp
+            [error] => 0
+            [size] => 662169
+        )
+
+)
+
+--- NUEVO INTENTO 2025-12-31 03:24:27 ---
+POST: Array
+(
+    [server_id] => 22
+    [message] => Hola hola 
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_22.png
+            [full_path] => drawing_22.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\php4C23.tmp
+            [error] => 0
+            [size] => 45404
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php4CEF.tmp
+            [error] => 0
+            [size] => 546683
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php4FDE.tmp
+            [error] => 0
+            [size] => 619848
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php51E2.tmp
+            [error] => 0
+            [size] => 595257
+        )
+
+)
+

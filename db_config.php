@@ -1,13 +1,20 @@
 <?php
-// db_config.php
-$host = "localhost";
-$db_name = "magic_letters_db";
-$username = "root"; // Tu usuario de MySQL
-$password = "1998";     // Tu contraseña de MySQL
+// api/db_config.php
+
+$host = 'localhost';
+// ✅ NOMBRE CORREGIDO
+$dbname = 'magic_letters_db'; 
+$username = 'root';
+$password = '1998'; // En XAMPP suele ser vacío
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db_name;charset=utf8", $username, $password);
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    die("Error de conexión: " . $e->getMessage());
+    // Si falla, devolvemos un JSON claro en lugar de romper la página
+    header("Content-Type: application/json");
+    http_response_code(500);
+    echo json_encode(["error" => "Error de conexión a la Base de Datos: " . $e->getMessage()]);
+    exit;
 }
+?>

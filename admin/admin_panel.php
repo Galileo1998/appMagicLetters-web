@@ -208,7 +208,7 @@ $completadas = count(array_filter($cartas, fn($c) => $c['status'] == 'COMPLETADO
         // 1. Llenar los datos visuales
         document.getElementById('m_slip_display').innerText = "ID: " + data.slip_id;
         document.getElementById('m_child_name').innerText = data.child_name;
-        document.getElementById('m_child_nbr').innerText = "N° Niño: " + data.child_nbr;
+        document.getElementById('m_child_nbr').innerText = "N° Niño: " + data.child_code;
         document.getElementById('m_village').innerText = data.village;
         document.getElementById('m_contact').innerText = data.contact_name ? data.contact_name : "N/D";
         document.getElementById('m_date').innerText = data.due_date;
