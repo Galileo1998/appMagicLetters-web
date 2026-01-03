@@ -1,5 +1,13 @@
 <?php
-// admin/ver_carta.php
+session_start();
+
+// VERIFICACIÓN DE SEGURIDAD
+if (!isset($_SESSION['usuario_id'])) {
+    // Si no hay sesión de admin, mandar al login principal
+    header("Location: ../index.php");
+    exit;
+}
+
 require '../db_config.php';
 
 if (!isset($_GET['id'])) die("Error: ID no proporcionado.");

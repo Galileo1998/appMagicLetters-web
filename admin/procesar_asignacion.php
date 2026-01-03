@@ -1,5 +1,13 @@
 <?php
 session_start();
+
+// VERIFICACIÓN DE SEGURIDAD
+if (!isset($_SESSION['usuario_id'])) {
+    // Si no hay sesión de admin, mandar al login principal
+    header("Location: ../index.php");
+    exit;
+}
+
 require '../db_config.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {

@@ -1,5 +1,15 @@
 <?php
 session_start();
+
+// VERIFICACIÓN DE SEGURIDAD
+if (!isset($_SESSION['usuario_id'])) {
+    // Si no hay sesión de admin, mandar al login principal
+    header("Location: ../index.php");
+    exit;
+}
+
+require '../db_config.php';
+
 // LINEA PARA DEPURAR:
 if (isset($_FILES['pdf_file']['error']) && $_FILES['pdf_file']['error'] !== 0) {
     die("Error de PHP al subir: " . $_FILES['pdf_file']['error'] . 

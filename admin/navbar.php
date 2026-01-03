@@ -1,18 +1,24 @@
 <?php
-// Obtener el nombre del archivo actual para saber qué botón activar
+// admin/navbar.php
 $pagina_actual = basename($_SERVER['PHP_SELF']);
 ?>
 <style>
-    /* Estilos de la Barra de Navegación */
+    /* --- PALETA DE COLORES INTELIGENTE --- */
+    :root {
+        --color-identity: #46B094;
+        --color-support: #34859B;
+        --color-accent: #B4D6E0;
+    }
+
     .main-header {
-        background-color: #1e62d0;
+        background-color: var(--color-identity);
         padding: 0 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(70, 176, 148, 0.25);
         display: flex;
         justify-content: space-between;
         align-items: center;
         height: 60px;
-        position: sticky; /* Se queda fijo arriba al bajar */
+        position: sticky;
         top: 0;
         z-index: 1000;
     }
@@ -25,6 +31,7 @@ $pagina_actual = basename($_SERVER['PHP_SELF']);
         display: flex;
         align-items: center;
         gap: 10px;
+        letter-spacing: 0.5px;
     }
 
     .nav-links {
@@ -36,28 +43,31 @@ $pagina_actual = basename($_SERVER['PHP_SELF']);
     }
 
     .nav-item a {
-        color: rgba(255,255,255,0.8);
+        color: rgba(255,255,255,0.92);
         text-decoration: none;
-        padding: 8px 15px;
-        border-radius: 5px;
+        padding: 8px 16px;
+        border-radius: 6px;
         font-size: 14px;
-        font-weight: 500;
-        transition: all 0.3s;
+        font-weight: 600;
+        transition: all 0.3s ease;
         display: flex;
         align-items: center;
         gap: 8px;
     }
 
+    /* Efecto Hover: Color de Apoyo */
     .nav-item a:hover {
-        background-color: rgba(255,255,255,0.1);
+        background-color: var(--color-support);
         color: white;
+        transform: translateY(-1px);
     }
 
-    /* Estilo para el botón de la página actual */
+    /* Estado Activo: Fondo Blanco + Texto Identidad */
     .nav-item a.active {
         background-color: white;
-        color: #1e62d0;
-        font-weight: bold;
+        color: var(--color-identity);
+        font-weight: 800;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 
     .user-menu {
@@ -67,24 +77,27 @@ $pagina_actual = basename($_SERVER['PHP_SELF']);
     }
 
     .btn-logout {
-        background-color: rgba(0,0,0,0.2);
+        background-color: rgba(0,0,0,0.15);
         color: white;
-        padding: 6px 12px;
-        border-radius: 4px;
+        padding: 7px 14px;
+        border-radius: 20px;
         text-decoration: none;
         font-size: 13px;
+        transition: background 0.2s;
+        border: 1px solid rgba(255,255,255,0.1);
     }
-    .btn-logout:hover { background-color: #dc3545; }
+    .btn-logout:hover { background-color: #dc3545; border-color: #dc3545; }
 
-    /* Responsivo para móviles */
     @media (max-width: 768px) {
-        .main-header { flex-direction: column; height: auto; padding: 10px; }
-        .nav-links { flex-wrap: wrap; justify-content: center; margin-top: 10px; }
-        .user-menu { margin-top: 10px; }
+        .main-header { flex-direction: column; height: auto; padding: 15px; }
+        .nav-links { flex-wrap: wrap; justify-content: center; margin-top: 10px; width: 100%; }
+        .nav-item { width: 100%; text-align: center; }
+        .nav-item a { justify-content: center; }
+        .user-menu { margin-top: 15px; width: 100%; justify-content: space-between; }
     }
 </style>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 <nav class="main-header">
     <a href="dashboard.php" class="brand-logo">
@@ -120,7 +133,7 @@ $pagina_actual = basename($_SERVER['PHP_SELF']);
     </ul>
 
     <div class="user-menu">
-        <a href="../tecnico/index.php" target="_blank" style="color:white; font-size:12px; text-decoration:none; opacity:0.7;">
+        <a href="../tecnico/index.php" target="_blank" style="color:white; font-size:12px; text-decoration:none; opacity:0.85; font-weight:500;">
             Ver como Técnico <i class="fa-solid fa-external-link-alt"></i>
         </a>
         <a href="logout.php" class="btn-logout">
