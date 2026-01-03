@@ -147,7 +147,7 @@ $tecnicos = $stmt_tech->fetchAll(PDO::FETCH_ASSOC);
             <?php foreach($cartas as $c): ?>
             <tr>
                 <td><strong><?= htmlspecialchars($c['slip_id']) ?></strong></td>
-                <td><?= htmlspecialchars($c['child_nbr']) ?></td>
+                <td><?= htmlspecialchars($c['child_code']) ?></td>
                 <td><?= htmlspecialchars($c['child_name']) ?></td>
                 <td><?= htmlspecialchars($c['village']) ?></td>
                 
