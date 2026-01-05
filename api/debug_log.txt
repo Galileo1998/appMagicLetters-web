@@ -527,3 +527,209 @@ FILES: Array
 
 )
 
+--- NUEVO INTENTO 2026-01-05 17:43:05 ---
+POST: Array
+(
+    [server_id] => 36
+    [message] => Hola hokyy
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_36.png
+            [full_path] => drawing_36.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\php4503.tmp
+            [error] => 0
+            [size] => 60301
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php4533.tmp
+            [error] => 0
+            [size] => 599368
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php465D.tmp
+            [error] => 0
+            [size] => 703389
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php49AA.tmp
+            [error] => 0
+            [size] => 644223
+        )
+
+)
+
+--- NUEVO INTENTO 2026-01-05 21:19:35 ---
+POST: Array
+(
+    [server_id] => 58
+    [message] => No quiero ser patrocinado, el técnico es malo
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_58.png
+            [full_path] => drawing_58.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\php7F4F.tmp
+            [error] => 0
+            [size] => 50342
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php7F60.tmp
+            [error] => 0
+            [size] => 696073
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php802C.tmp
+            [error] => 0
+            [size] => 301999
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php805C.tmp
+            [error] => 0
+            [size] => 474813
+        )
+
+)
+
+--- NUEVO INTENTO 2026-01-05 21:22:36 ---
+POST: Array
+(
+    [server_id] => 58
+    [message] => Querido padrino quiero decirle que usted es el mejor padrino del mundo. Es el mejor padrino que he tenido, no lo cambiaría por nadie.
+
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_58.png
+            [full_path] => drawing_58.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\php44EB.tmp
+            [error] => 0
+            [size] => 50342
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php450C.tmp
+            [error] => 0
+            [size] => 696073
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php458A.tmp
+            [error] => 0
+            [size] => 301999
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php45B9.tmp
+            [error] => 0
+            [size] => 474813
+        )
+
+)
+
+--- NUEVO INTENTO 2026-01-05 21:59:38 ---
+POST: Array
+(
+    [server_id] => 58
+    [message] => Querido padrino quiero decirle que usted es el mejor padrino del mundo. Es el mejor padrino que he tenido, no lo cambiaría por nadie.
+
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_58.png
+            [full_path] => drawing_58.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\php2AF9.tmp
+            [error] => 0
+            [size] => 50342
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php2B29.tmp
+            [error] => 0
+            [size] => 696073
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php2BF5.tmp
+            [error] => 0
+            [size] => 301999
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php2C54.tmp
+            [error] => 0
+            [size] => 290323
+        )
+
+)
+
