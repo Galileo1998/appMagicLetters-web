@@ -9,89 +9,94 @@ if (!isset($_SESSION['usuario_id'])) {
 
 require '../db_config.php';
 
-// --- 1. DATOS MAESTROS (Para llenar los selects) ---
+// --- LÓGICA DE BORRADO SEGURO ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_letter') {
+    $id_borrar = $_POST['delete_id'];
+    $password_confirm = $_POST['password_confirm'];
+    $admin_id = $_SESSION['usuario_id'];
+
+    // 1. Buscar la contraseña actual del administrador en la tabla 'usuarios'
+    $stmt_user = $pdo->prepare("SELECT password FROM usuarios WHERE id = ?");
+    $stmt_user->execute([$admin_id]);
+    $user = $stmt_user->fetch(PDO::FETCH_ASSOC);
+
+    // 2. VALIDACIÓN TEXTO PLANO (Sin Encriptar)
+    // Comparamos directamente si son iguales
+    if ($user && $password_confirm === $user['password']) {
+        
+        // Contraseña correcta: Proceder a borrar
+        
+        // A. Borrar adjuntos primero para mantener limpia la DB
+        $pdo->prepare("DELETE FROM letter_attachments WHERE letter_id = ?")->execute([$id_borrar]);
+        
+        // B. Borrar la carta
+        $stmt_del = $pdo->prepare("DELETE FROM letters WHERE id = ?");
+        
+        if ($stmt_del->execute([$id_borrar])) {
+            echo "<script>alert('Carta eliminada correctamente.'); window.location.href='admin_panel.php';</script>";
+        } else {
+            echo "<script>alert('Error al intentar borrar la carta de la base de datos.');</script>";
+        }
+
+    } else {
+        // 3. Contraseña incorrecta
+        echo "<script>alert('ERROR: La contraseña es incorrecta.'); window.location.href='admin_panel.php';</script>";
+    }
+}
+
+// --- 1. DATOS MAESTROS ---
 $tecnicos_lista = $pdo->query("SELECT id, full_name FROM technicians ORDER BY full_name")->fetchAll(PDO::FETCH_ASSOC);
 $estados_lista  = ['PENDIENTE', 'ASSIGNED', 'COMPLETADO', 'SYNCED', 'RETURNED']; 
 
-// --- 2. RECUPERAR VALORES DE FILTRO (VACÍOS POR DEFECTO) ---
-// Al usar el operador ?? '', garantizamos que si no hay $_GET, la variable esté vacía.
+// --- 2. RECUPERAR VALORES DE FILTRO ---
 $f_upload_start = $_GET['upload_start'] ?? '';
 $f_upload_end   = $_GET['upload_end'] ?? '';
 $f_assign_start = $_GET['assign_start'] ?? '';
 $f_assign_end   = $_GET['assign_end'] ?? '';
-$f_tech_ids     = $_GET['tech_ids'] ?? []; // Array vacío por defecto
-$f_statuses     = $_GET['statuses'] ?? []; // Array vacío por defecto
+$f_tech_ids     = $_GET['tech_ids'] ?? []; 
+$f_statuses     = $_GET['statuses'] ?? []; 
 
-// Variable para controlar si mostramos el botón de limpiar activo
 $hay_filtros = !empty(array_filter($_GET));
 
 // --- 3. CONSTRUCCIÓN DINÁMICA DE SQL ---
-$where_clauses = ["1=1"]; // Base siempre verdadera (Trae todo si no hay filtros)
+$where_clauses = ["1=1"]; 
 $params = [];
 
-// A. Lógica Fecha Carga
-if (!empty($f_upload_start)) {
-    $where_clauses[] = "DATE(l.created_at) >= ?";
-    $params[] = $f_upload_start;
-}
-if (!empty($f_upload_end)) {
-    $where_clauses[] = "DATE(l.created_at) <= ?";
-    $params[] = $f_upload_end;
-}
+// Filtros...
+if (!empty($f_upload_start)) { $where_clauses[] = "DATE(l.created_at) >= ?"; $params[] = $f_upload_start; }
+if (!empty($f_upload_end)) { $where_clauses[] = "DATE(l.created_at) <= ?"; $params[] = $f_upload_end; }
+if (!empty($f_assign_start)) { $where_clauses[] = "DATE(l.assigned_at) >= ?"; $params[] = $f_assign_start; }
+if (!empty($f_assign_end)) { $where_clauses[] = "DATE(l.assigned_at) <= ?"; $params[] = $f_assign_end; }
 
-// B. Lógica Fecha Asignación
-if (!empty($f_assign_start)) {
-    $where_clauses[] = "DATE(l.assigned_at) >= ?";
-    $params[] = $f_assign_start;
-}
-if (!empty($f_assign_end)) {
-    $where_clauses[] = "DATE(l.assigned_at) <= ?";
-    $params[] = $f_assign_end;
-}
-
-// C. Lógica Técnicos (Compleja: IDs + Nulls)
 if (!empty($f_tech_ids)) {
     $tech_conditions = [];
     $ids_limpios = [];
     $incluir_sin_asignar = false;
-
     foreach ($f_tech_ids as $val) {
-        if ($val === 'unassigned') {
-            $incluir_sin_asignar = true;
-        } else {
-            $ids_limpios[] = $val;
-        }
+        if ($val === 'unassigned') $incluir_sin_asignar = true;
+        else $ids_limpios[] = $val;
     }
-
-    // Parte 1: IDs específicos seleccionados
     if (!empty($ids_limpios)) {
         $placeholders = implode(',', array_fill(0, count($ids_limpios), '?'));
         $tech_conditions[] = "l.tech_id IN ($placeholders)";
         foreach ($ids_limpios as $id) $params[] = $id;
     }
-
-    // Parte 2: Opción "Sin Asignar" seleccionada
     if ($incluir_sin_asignar) {
         $tech_conditions[] = "(l.tech_id IS NULL OR l.tech_id = 0)";
     }
-
-    // Combinar condiciones (Juan OR Pedro OR Nadie)
     if (!empty($tech_conditions)) {
         $where_clauses[] = "(" . implode(' OR ', $tech_conditions) . ")";
     }
 }
 
-// D. Lógica Estados
 if (!empty($f_statuses)) {
     $placeholders = implode(',', array_fill(0, count($f_statuses), '?'));
     $where_clauses[] = "l.status IN ($placeholders)";
     foreach ($f_statuses as $st) $params[] = $st;
 }
 
-// Unir todo con AND
 $sql_where = implode(" AND ", $where_clauses);
 
-// Consulta Final
 $sql = "SELECT l.*, t.full_name as tech_name 
         FROM letters l 
         LEFT JOIN technicians t ON l.tech_id = t.id 
@@ -102,7 +107,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $cartas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Contadores dinámicos (se actualizan según lo que ves en tabla)
+// Contadores
 $total = count($cartas);
 $pendientes = count(array_filter($cartas, fn($c) => in_array($c['status'], ['PENDIENTE', 'ASSIGNED'])));
 $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['COMPLETADO', 'SYNCED'])));
@@ -127,6 +132,7 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
             --color-support: #34859B;
             --color-accent: #B4D6E0;
             --color-bg: #f4f7f6;
+            --color-danger: #dc3545;
         }
 
         body { font-family: 'Segoe UI', sans-serif; background: var(--color-bg); padding: 20px; color: #444; }
@@ -144,52 +150,19 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         .main-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-top: 5px solid var(--color-primary); }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         
-        /* --- SISTEMA DE FILTROS --- */
-        .filter-panel {
-            background: #f1f4f6; border: 1px solid #dce1e6; padding: 20px; border-radius: 10px;
-            margin-bottom: 25px;
-        }
-        
+        /* Filtros */
+        .filter-panel { background: #f1f4f6; border: 1px solid #dce1e6; padding: 20px; border-radius: 10px; margin-bottom: 25px; }
         .filter-title { font-size: 14px; font-weight: 700; color: var(--color-support); margin-bottom: 15px; display:flex; align-items:center; gap:8px; }
-        
-        .filter-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: start;
-        }
-
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: start; }
         .filter-group { display: flex; flex-direction: column; gap: 6px; }
         .filter-label { font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-        
-        .input-control {
-            padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; color: #555;
-            transition: all 0.2s; width: 100%; box-sizing: border-box; background: white;
-        }
-        .input-control:focus { border-color: var(--color-primary); outline: none; box-shadow: 0 0 0 3px rgba(70, 176, 148, 0.1); }
-        
-        /* Select Múltiple Estilizado */
+        .input-control { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; color: #555; width: 100%; box-sizing: border-box; background: white; }
         select[multiple] { height: 100px; padding: 5px; overflow-y: auto; background-image: linear-gradient(to bottom, #fff 0%, #f9f9f9 100%); }
-        select[multiple] option { padding: 6px; border-radius: 3px; margin-bottom: 2px; cursor: pointer; }
-        select[multiple] option:checked { background-color: var(--color-accent); color: #000; font-weight: 600; }
-
-        .filter-actions {
-            display: flex; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0; justify-content: flex-end;
-        }
-
-        .btn-filter { 
-            background: var(--color-primary); color: white; border: none; padding: 10px 30px; 
-            border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; 
-            display: flex; align-items: center; gap: 8px;
-        }
-        .btn-filter:hover { background: var(--color-support); transform: translateY(-1px); }
+        .filter-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0; justify-content: flex-end; }
+        .btn-filter { background: var(--color-primary); color: white; border: none; padding: 10px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .btn-reset { background: white; border: 1px solid #d9534f; color: #d9534f; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
         
-        .btn-reset { 
-            background: white; border: 1px solid #d9534f; color: #d9534f; padding: 10px 20px; 
-            border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 600; transition: 0.3s;
-            display: flex; align-items: center; gap: 8px;
-        }
-        .btn-reset:hover { background: #d9534f; color: white; }
-        .btn-reset.disabled { border-color: #ddd; color: #aaa; pointer-events: none; background: #f9f9f9; }
-
-        /* Estilos Tabla y Botones Generales */
+        /* Botones */
         .menu-btn { text-decoration: none; padding: 8px 16px; border-radius: 5px; font-weight: bold; font-size: 13px; display: inline-block; margin-left: 5px; }
         .btn-blue { background: var(--color-primary); color: white; }
         .btn-outline { border: 1px solid var(--color-primary); color: var(--color-primary); background: white; }
@@ -203,12 +176,25 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         /* Acciones */
         .btn-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; transition: transform 0.2s; text-decoration: none; font-size: 13px; }
         .btn-icon:hover { transform: scale(1.15); }
+        .btn-delete { background: #ffe6e6; color: var(--color-danger); }
+        .btn-delete:hover { background: var(--color-danger); color: white; }
 
-        /* Modal */
+        /* Modales */
         .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(52, 133, 155, 0.6); backdrop-filter: blur(3px); }
         .modal-content { background-color: transparent; margin: 5% auto; width: 380px; position: relative; animation: slideDown 0.4s ease; }
+        
+        /* Modal Borrado */
+        .delete-modal-content { 
+            background: white; padding: 25px; border-radius: 12px; width: 400px; margin: 15% auto; 
+            border-left: 5px solid var(--color-danger); box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: slideDown 0.3s ease; position: relative;
+        }
+        .delete-input { width: 100%; padding: 10px; margin: 15px 0; border: 1px solid #ccc; border-radius: 5px; }
+        .btn-confirm-delete { background: var(--color-danger); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
+
         .close-modal { position: absolute; right: -40px; top: 0; color: white; font-size: 30px; cursor: pointer; font-weight: bold; }
         .slip-replica { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 15px 40px rgba(0,0,0,0.25); }
+        
         @keyframes slideDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
@@ -249,12 +235,8 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         </div>
 
         <form class="filter-panel" method="GET">
-            <div class="filter-title">
-                <i class="fa-solid fa-filter"></i> Filtros de Búsqueda
-            </div>
-            
+            <div class="filter-title"><i class="fa-solid fa-filter"></i> Filtros de Búsqueda</div>
             <div class="filter-grid">
-                
                 <div class="filter-group">
                     <span class="filter-label"><i class="fa-regular fa-folder-open"></i> Fecha Carga</span>
                     <div style="display:flex; gap:5px; align-items:center;">
@@ -263,7 +245,6 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
                         <input type="date" name="upload_end" class="input-control" value="<?= $f_upload_end ?>">
                     </div>
                 </div>
-
                 <div class="filter-group">
                     <span class="filter-label"><i class="fa-solid fa-calendar-check"></i> Fecha Asignación</span>
                     <div style="display:flex; gap:5px; align-items:center;">
@@ -272,40 +253,27 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
                         <input type="date" name="assign_end" class="input-control" value="<?= $f_assign_end ?>">
                     </div>
                 </div>
-
                 <div class="filter-group">
-                    <span class="filter-label"><i class="fa-solid fa-users"></i> Técnicos (Ctrl + Click)</span>
+                    <span class="filter-label"><i class="fa-solid fa-users"></i> Técnicos</span>
                     <select name="tech_ids[]" class="input-control" multiple>
-                        <option value="unassigned" <?= (in_array('unassigned', $f_tech_ids)) ? 'selected' : '' ?> style="color:#d9534f; font-style:italic; font-weight:bold;">
-                            🚫 Sin Asignar
-                        </option>
+                        <option value="unassigned" <?= (in_array('unassigned', $f_tech_ids)) ? 'selected' : '' ?> style="color:#d9534f; font-weight:bold;">🚫 Sin Asignar</option>
                         <?php foreach($tecnicos_lista as $t): ?>
-                            <option value="<?= $t['id'] ?>" <?= (in_array($t['id'], $f_tech_ids)) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($t['full_name']) ?>
-                            </option>
+                            <option value="<?= $t['id'] ?>" <?= (in_array($t['id'], $f_tech_ids)) ? 'selected' : '' ?>><?= htmlspecialchars($t['full_name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-
                 <div class="filter-group">
-                    <span class="filter-label"><i class="fa-solid fa-list-check"></i> Estado (Ctrl + Click)</span>
+                    <span class="filter-label"><i class="fa-solid fa-list-check"></i> Estado</span>
                     <select name="statuses[]" class="input-control" multiple>
                         <?php foreach($estados_lista as $st): ?>
-                            <option value="<?= $st ?>" <?= (in_array($st, $f_statuses)) ? 'selected' : '' ?>>
-                                <?= $st ?>
-                            </option>
+                            <option value="<?= $st ?>" <?= (in_array($st, $f_statuses)) ? 'selected' : '' ?>><?= $st ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
-
             <div class="filter-actions">
-                <a href="admin_panel.php" class="btn-reset <?= !$hay_filtros ? 'disabled' : '' ?>">
-                    <i class="fa-solid fa-trash-can"></i> Borrar Filtros
-                </a>
-                <button type="submit" class="btn-filter">
-                    <i class="fa-solid fa-magnifying-glass"></i> Aplicar Filtros
-                </button>
+                <a href="admin_panel.php" class="btn-reset <?= !$hay_filtros ? 'disabled' : '' ?>"><i class="fa-solid fa-trash-can"></i> Borrar Filtros</a>
+                <button type="submit" class="btn-filter"><i class="fa-solid fa-magnifying-glass"></i> Aplicar</button>
             </div>
         </form>
 
@@ -328,24 +296,16 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
                     <td><strong>#<?= htmlspecialchars($c['slip_id']) ?></strong></td>
                     <td><?= htmlspecialchars($c['child_name']) ?></td>
                     <td><?= htmlspecialchars($c['village']) ?></td>
-                    <td style="color:#666;">
-                        <?= $c['tech_name'] ? '👤 '.$c['tech_name'] : '<span style="color:#d9534f; font-weight:bold; font-size:11px;">🚫 SIN ASIGNAR</span>' ?>
-                    </td>
-                    <td style="font-size:12px; color:#888;">
-                        <?= date('d/m/Y', strtotime($c['created_at'])) ?>
-                    </td>
-                    <td style="font-size:12px; color:#888;">
-                        <?= !empty($c['assigned_at']) ? date('d/m/Y', strtotime($c['assigned_at'])) : '-' ?>
-                    </td>
+                    <td style="color:#666;"><?= $c['tech_name'] ? '👤 '.$c['tech_name'] : '<span style="color:#d9534f; font-weight:bold; font-size:11px;">🚫 SIN ASIGNAR</span>' ?></td>
+                    <td style="font-size:12px; color:#888;"><?= date('d/m/Y', strtotime($c['created_at'])) ?></td>
+                    <td style="font-size:12px; color:#888;"><?= !empty($c['assigned_at']) ? date('d/m/Y', strtotime($c['assigned_at'])) : '-' ?></td>
                     <td>
                         <?php 
                             $statusClass = 'badge-pending';
                             if($c['status'] == 'COMPLETADO' || $c['status'] == 'SYNCED') $statusClass = 'badge-done';
                             if($c['status'] == 'RETURNED') $statusClass = 'badge-return';
                         ?>
-                        <span class="badge <?= $statusClass ?>">
-                            <?= $c['status'] ?>
-                        </span>
+                        <span class="badge <?= $statusClass ?>"><?= $c['status'] ?></span>
                     </td>
                     <td>
                         <div style="display:flex; gap:8px;">
@@ -354,6 +314,8 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
                             <?php if(in_array($c['status'], ['COMPLETADO', 'SYNCED', 'EN_REVISION', 'RETURNED'])): ?>
                                 <a href="ver_carta.php?id=<?= $c['id'] ?>" class="btn-icon" style="background:var(--color-primary); color:white;" title="Revisar Carta">👁️</a>
                             <?php endif; ?>
+
+                            <button class="btn-icon btn-delete" onclick="borrarCarta(<?= $c['id'] ?>)" title="Eliminar Carta">🗑️</button>
                         </div>
                     </td>
                 </tr>
@@ -383,12 +345,31 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
             <div style="padding:15px; text-align:center; border-top:1px solid #eee;">
                 <svg id="barcode"></svg>
                 <div style="margin-top:10px;">
-                    <span style="background:#fff3cd; color:#856404; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:bold;">
-                        📅 Límite: <span id="m_date"></span>
-                    </span>
+                    <span style="background:#fff3cd; color:#856404; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:bold;">📅 Límite: <span id="m_date"></span></span>
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<div id="modalBorrar" class="modal">
+    <div class="delete-modal-content">
+        <span onclick="cerrarModalBorrar()" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:20px;">&times;</span>
+        <h3 style="margin-top:0; color:var(--color-danger);"><i class="fa-solid fa-triangle-exclamation"></i> Eliminar Carta</h3>
+        <p style="font-size:13px; color:#555; line-height:1.5;">Esta acción es irreversible. Se eliminará la carta y todos sus archivos adjuntos.</p>
+        
+        <form method="POST">
+            <input type="hidden" name="action" value="delete_letter">
+            <input type="hidden" id="delete_id" name="delete_id" value="">
+            
+            <label style="font-size:12px; font-weight:bold;">Confirma tu contraseña de Admin:</label>
+            <input type="password" name="password_confirm" class="delete-input" placeholder="Tu contraseña..." required>
+            
+            <div style="display:flex; gap:10px;">
+                <button type="button" onclick="cerrarModalBorrar()" style="flex:1; padding:10px; border:1px solid #ccc; background:white; border-radius:5px; cursor:pointer;">Cancelar</button>
+                <button type="submit" class="btn-confirm-delete" style="flex:1;">Confirmar Borrado</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -425,7 +406,20 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         modal.style.display = "block";
     }
     function cerrarModal() { modal.style.display = "none"; }
-    window.onclick = function(event) { if (event.target == modal) cerrarModal(); }
+
+    var modalDel = document.getElementById("modalBorrar");
+    function borrarCarta(id) {
+        document.getElementById('delete_id').value = id;
+        modalDel.style.display = "block";
+    }
+    function cerrarModalBorrar() {
+        modalDel.style.display = "none";
+    }
+
+    window.onclick = function(event) { 
+        if (event.target == modal) cerrarModal();
+        if (event.target == modalDel) cerrarModalBorrar();
+    }
 </script>
 
 </body>

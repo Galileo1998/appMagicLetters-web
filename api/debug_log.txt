@@ -425,3 +425,105 @@ FILES: Array
 
 )
 
+--- NUEVO INTENTO 2026-01-05 15:54:20 ---
+POST: Array
+(
+    [server_id] => 45
+    [message] => Hola hola
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_45.png
+            [full_path] => drawing_45.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\phpB723.tmp
+            [error] => 0
+            [size] => 50575
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpB734.tmp
+            [error] => 0
+            [size] => 752478
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpB84E.tmp
+            [error] => 0
+            [size] => 818823
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpB92A.tmp
+            [error] => 0
+            [size] => 824725
+        )
+
+)
+
+--- NUEVO INTENTO 2026-01-05 16:29:39 ---
+POST: Array
+(
+    [server_id] => 22
+    [message] => Hola hffhrww
+)
+
+FILES: Array
+(
+    [drawing] => Array
+        (
+            [name] => drawing_22.png
+            [full_path] => drawing_22.png
+            [type] => image/png
+            [tmp_name] => C:\celestia\tmp\php6D3.tmp
+            [error] => 0
+            [size] => 114664
+        )
+
+    [photo_0] => Array
+        (
+            [name] => photo_0.jpg
+            [full_path] => photo_0.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\phpA5E.tmp
+            [error] => 0
+            [size] => 734242
+        )
+
+    [photo_1] => Array
+        (
+            [name] => photo_1.jpg
+            [full_path] => photo_1.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php103B.tmp
+            [error] => 0
+            [size] => 585014
+        )
+
+    [photo_2] => Array
+        (
+            [name] => photo_2.jpg
+            [full_path] => photo_2.jpg
+            [type] => image/jpeg
+            [tmp_name] => C:\celestia\tmp\php11C3.tmp
+            [error] => 0
+            [size] => 676003
+        )
+
+)
+
