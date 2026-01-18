@@ -1,6 +1,9 @@
 <?php
 session_start();
 
+// 1. CORRECCIÓN DE ZONA HORARIA Y FECHA (CRUCIAL)
+date_default_timezone_set('America/Tegucigalpa');
+
 // VERIFICACIÓN DE SEGURIDAD
 if (!isset($_SESSION['usuario_id'])) {
     header("Location: ../index.php");
@@ -15,21 +18,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $password_confirm = $_POST['password_confirm'];
     $admin_id = $_SESSION['usuario_id'];
 
-    // 1. Buscar la contraseña actual del administrador en la tabla 'usuarios'
     $stmt_user = $pdo->prepare("SELECT password FROM usuarios WHERE id = ?");
     $stmt_user->execute([$admin_id]);
     $user = $stmt_user->fetch(PDO::FETCH_ASSOC);
 
-    // 2. VALIDACIÓN TEXTO PLANO (Sin Encriptar)
-    // Comparamos directamente si son iguales
     if ($user && $password_confirm === $user['password']) {
-        
-        // Contraseña correcta: Proceder a borrar
-        
-        // A. Borrar adjuntos primero para mantener limpia la DB
         $pdo->prepare("DELETE FROM letter_attachments WHERE letter_id = ?")->execute([$id_borrar]);
-        
-        // B. Borrar la carta
         $stmt_del = $pdo->prepare("DELETE FROM letters WHERE id = ?");
         
         if ($stmt_del->execute([$id_borrar])) {
@@ -37,37 +31,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         } else {
             echo "<script>alert('Error al intentar borrar la carta de la base de datos.');</script>";
         }
-
     } else {
-        // 3. Contraseña incorrecta
         echo "<script>alert('ERROR: La contraseña es incorrecta.'); window.location.href='admin_panel.php';</script>";
     }
 }
 
-// --- 1. DATOS MAESTROS ---
+// --- DATOS MAESTROS ---
 $tecnicos_lista = $pdo->query("SELECT id, full_name FROM technicians ORDER BY full_name")->fetchAll(PDO::FETCH_ASSOC);
 $estados_lista  = ['PENDIENTE', 'ASSIGNED', 'COMPLETADO', 'SYNCED', 'RETURNED']; 
+$tipos_lista    = ['Child Welcome Letter', 'Child Reply Letter', 'Thank You Letter'];
 
-// --- 2. RECUPERAR VALORES DE FILTRO ---
+// --- RECUPERAR FILTROS ---
 $f_upload_start = $_GET['upload_start'] ?? '';
 $f_upload_end   = $_GET['upload_end'] ?? '';
-$f_assign_start = $_GET['assign_start'] ?? '';
-$f_assign_end   = $_GET['assign_end'] ?? '';
 $f_tech_ids     = $_GET['tech_ids'] ?? []; 
-$f_statuses     = $_GET['statuses'] ?? []; 
+$f_statuses     = $_GET['statuses'] ?? [];
+$f_type         = $_GET['letter_type'] ?? ''; 
+$f_urgency      = $_GET['urgency'] ?? '';     
 
 $hay_filtros = !empty(array_filter($_GET));
 
-// --- 3. CONSTRUCCIÓN DINÁMICA DE SQL ---
+// --- CONSTRUCCIÓN SQL ---
 $where_clauses = ["1=1"]; 
 $params = [];
 
-// Filtros...
+// 1. Filtro Urgencia (Usando STR_TO_DATE para comparar fechas reales)
+if ($f_urgency === 'expired') {
+    $where_clauses[] = "STR_TO_DATE(l.technician_due_date, '%d-%b-%Y') < CURDATE()";
+    $where_clauses[] = "l.status IN ('PENDIENTE', 'ASSIGNED')"; 
+} elseif ($f_urgency === 'risk') {
+    $where_clauses[] = "STR_TO_DATE(l.technician_due_date, '%d-%b-%Y') BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)";
+    $where_clauses[] = "l.status IN ('PENDIENTE', 'ASSIGNED')";
+}
+
+// 2. Filtro Tipo
+if (!empty($f_type)) { 
+    $where_clauses[] = "l.letter_type LIKE ?"; 
+    $params[] = "%$f_type%"; 
+}
+
+// 3. Filtro Fechas Carga
 if (!empty($f_upload_start)) { $where_clauses[] = "DATE(l.created_at) >= ?"; $params[] = $f_upload_start; }
 if (!empty($f_upload_end)) { $where_clauses[] = "DATE(l.created_at) <= ?"; $params[] = $f_upload_end; }
-if (!empty($f_assign_start)) { $where_clauses[] = "DATE(l.assigned_at) >= ?"; $params[] = $f_assign_start; }
-if (!empty($f_assign_end)) { $where_clauses[] = "DATE(l.assigned_at) <= ?"; $params[] = $f_assign_end; }
 
+// 4. Filtro Técnicos
 if (!empty($f_tech_ids)) {
     $tech_conditions = [];
     $ids_limpios = [];
@@ -89,6 +96,7 @@ if (!empty($f_tech_ids)) {
     }
 }
 
+// 5. Filtro Estados
 if (!empty($f_statuses)) {
     $placeholders = implode(',', array_fill(0, count($f_statuses), '?'));
     $where_clauses[] = "l.status IN ($placeholders)";
@@ -107,10 +115,16 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $cartas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Contadores
-$total = count($cartas);
-$pendientes = count(array_filter($cartas, fn($c) => in_array($c['status'], ['PENDIENTE', 'ASSIGNED'])));
-$completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['COMPLETADO', 'SYNCED'])));
+// Contadores Totales (Globales)
+$stats_res = $pdo->query("SELECT 
+    COUNT(*) as total,
+    SUM(CASE WHEN status IN ('PENDIENTE','ASSIGNED') THEN 1 ELSE 0 END) as pendientes,
+    SUM(CASE WHEN status IN ('COMPLETADO','SYNCED') THEN 1 ELSE 0 END) as completadas
+    FROM letters")->fetch(PDO::FETCH_ASSOC);
+
+$total = $stats_res['total'];
+$pendientes = $stats_res['pendientes'];
+$completadas = $stats_res['completadas'];
 ?>
 
 <!DOCTYPE html>
@@ -133,10 +147,12 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
             --color-accent: #B4D6E0;
             --color-bg: #f4f7f6;
             --color-danger: #dc3545;
+            --color-warning: #f0ad4e;
+            --color-success: #28a745;
         }
 
         body { font-family: 'Segoe UI', sans-serif; background: var(--color-bg); padding: 20px; color: #444; }
-        .container { max-width: 1450px; margin: auto; }
+        .container { max-width: 1550px; margin: auto; }
 
         /* Stats */
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
@@ -153,7 +169,7 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         /* Filtros */
         .filter-panel { background: #f1f4f6; border: 1px solid #dce1e6; padding: 20px; border-radius: 10px; margin-bottom: 25px; }
         .filter-title { font-size: 14px; font-weight: 700; color: var(--color-support); margin-bottom: 15px; display:flex; align-items:center; gap:8px; }
-        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: start; }
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; align-items: start; }
         .filter-group { display: flex; flex-direction: column; gap: 6px; }
         .filter-label { font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
         .input-control { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; color: #555; width: 100%; box-sizing: border-box; background: white; }
@@ -168,10 +184,24 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         .btn-outline { border: 1px solid var(--color-primary); color: var(--color-primary); background: white; }
         
         table.dataTable thead th { background-color: var(--color-accent); color: var(--color-support); font-weight: 700; border-bottom: 2px solid white; padding: 12px; }
-        .badge { padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+        
+        /* BADGES */
+        .badge { padding: 4px 8px; border-radius: 20px; font-size: 10px; font-weight: 800; display: inline-block; text-transform: uppercase;}
         .badge-pending { background: #fff3cd; color: #856404; }
         .badge-done { background: #d4edda; color: #155724; }
         .badge-return { background: #f8d7da; color: #721c24; }
+
+        /* BADGES TIPOS */
+        .type-welcome { background: #e3f2fd; color: #0d47a1; }
+        .type-reply { background: #e8f5e9; color: #1b5e20; }
+        .type-thank { background: #f3e5f5; color: #4a148c; }
+        .type-unknown { background: #eee; color: #666; }
+
+        /* CUENTA REGRESIVA */
+        .countdown { font-weight: bold; font-size: 12px; }
+        .cd-red { color: var(--color-danger); }
+        .cd-orange { color: var(--color-warning); }
+        .cd-green { color: var(--color-success); }
 
         /* Acciones */
         .btn-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; transition: transform 0.2s; text-decoration: none; font-size: 13px; }
@@ -182,19 +212,11 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         /* Modales */
         .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(52, 133, 155, 0.6); backdrop-filter: blur(3px); }
         .modal-content { background-color: transparent; margin: 5% auto; width: 380px; position: relative; animation: slideDown 0.4s ease; }
-        
-        /* Modal Borrado */
-        .delete-modal-content { 
-            background: white; padding: 25px; border-radius: 12px; width: 400px; margin: 15% auto; 
-            border-left: 5px solid var(--color-danger); box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            animation: slideDown 0.3s ease; position: relative;
-        }
+        .delete-modal-content { background: white; padding: 25px; border-radius: 12px; width: 400px; margin: 15% auto; border-left: 5px solid var(--color-danger); box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: slideDown 0.3s ease; position: relative; }
         .delete-input { width: 100%; padding: 10px; margin: 15px 0; border: 1px solid #ccc; border-radius: 5px; }
         .btn-confirm-delete { background: var(--color-danger); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
-
         .close-modal { position: absolute; right: -40px; top: 0; color: white; font-size: 30px; cursor: pointer; font-weight: bold; }
         .slip-replica { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 15px 40px rgba(0,0,0,0.25); }
-        
         @keyframes slideDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
@@ -206,20 +228,21 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
     
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
         <h1 style="color:var(--color-primary); margin:0; font-weight:800;">Panel de Administración</h1>
+        <small style="color:#666; font-size:12px;">Hoy: <?= date('d-M-Y') ?></small>
     </div>
 
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-number"><?= $total ?></div>
-            <div class="stat-label">Resultados</div>
+            <div class="stat-label">Total en Sistema</div>
         </div>
         <div class="stat-card pending">
             <div class="stat-number" style="color:#f0ad4e;"><?= $pendientes ?></div>
-            <div class="stat-label">Pendientes</div>
+            <div class="stat-label">En Proceso</div>
         </div>
         <div class="stat-card done">
             <div class="stat-number" style="color:#46B094;"><?= $completadas ?></div>
-            <div class="stat-label">Completadas</div>
+            <div class="stat-label">Finalizadas</div>
         </div>
     </div>
 
@@ -237,22 +260,26 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         <form class="filter-panel" method="GET">
             <div class="filter-title"><i class="fa-solid fa-filter"></i> Filtros de Búsqueda</div>
             <div class="filter-grid">
+                
                 <div class="filter-group">
-                    <span class="filter-label"><i class="fa-regular fa-folder-open"></i> Fecha Carga</span>
-                    <div style="display:flex; gap:5px; align-items:center;">
-                        <input type="date" name="upload_start" class="input-control" value="<?= $f_upload_start ?>">
-                        <span style="color:#aaa;">-</span>
-                        <input type="date" name="upload_end" class="input-control" value="<?= $f_upload_end ?>">
-                    </div>
+                    <span class="filter-label"><i class="fa-solid fa-triangle-exclamation"></i> Urgencia</span>
+                    <select name="urgency" class="input-control" style="font-weight:bold;">
+                        <option value="">-- Todas --</option>
+                        <option value="expired" <?= $f_urgency == 'expired' ? 'selected' : '' ?> style="color:#dc3545;">🚨 Vencidas</option>
+                        <option value="risk" <?= $f_urgency == 'risk' ? 'selected' : '' ?> style="color:#fd7e14;">⚠️ Próximas (3 días)</option>
+                    </select>
                 </div>
+
                 <div class="filter-group">
-                    <span class="filter-label"><i class="fa-solid fa-calendar-check"></i> Fecha Asignación</span>
-                    <div style="display:flex; gap:5px; align-items:center;">
-                        <input type="date" name="assign_start" class="input-control" value="<?= $f_assign_start ?>">
-                        <span style="color:#aaa;">-</span>
-                        <input type="date" name="assign_end" class="input-control" value="<?= $f_assign_end ?>">
-                    </div>
+                    <span class="filter-label"><i class="fa-regular fa-file-lines"></i> Tipo de Carta</span>
+                    <select name="letter_type" class="input-control">
+                        <option value="">-- Todos los tipos --</option>
+                        <?php foreach($tipos_lista as $t): ?>
+                            <option value="<?= $t ?>" <?= $f_type == $t ? 'selected' : '' ?>><?= $t ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
+
                 <div class="filter-group">
                     <span class="filter-label"><i class="fa-solid fa-users"></i> Técnicos</span>
                     <select name="tech_ids[]" class="input-control" multiple>
@@ -262,6 +289,7 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
                         <?php endforeach; ?>
                     </select>
                 </div>
+
                 <div class="filter-group">
                     <span class="filter-label"><i class="fa-solid fa-list-check"></i> Estado</span>
                     <select name="statuses[]" class="input-control" multiple>
@@ -270,9 +298,18 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
                         <?php endforeach; ?>
                     </select>
                 </div>
+
+                <div class="filter-group">
+                    <span class="filter-label"><i class="fa-regular fa-calendar"></i> Fecha Carga</span>
+                    <div style="display:flex; gap:5px; align-items:center;">
+                        <input type="date" name="upload_start" class="input-control" value="<?= $f_upload_start ?>">
+                        <input type="date" name="upload_end" class="input-control" value="<?= $f_upload_end ?>">
+                    </div>
+                </div>
+
             </div>
             <div class="filter-actions">
-                <a href="admin_panel.php" class="btn-reset <?= !$hay_filtros ? 'disabled' : '' ?>"><i class="fa-solid fa-trash-can"></i> Borrar Filtros</a>
+                <a href="admin_panel.php" class="btn-reset <?= !$hay_filtros ? 'disabled' : '' ?>"><i class="fa-solid fa-trash-can"></i> Borrar</a>
                 <button type="submit" class="btn-filter"><i class="fa-solid fa-magnifying-glass"></i> Aplicar</button>
             </div>
         </form>
@@ -281,32 +318,80 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
             <thead>
                 <tr>
                     <th>Slip ID</th>
+                    <th>Tipo</th>
                     <th>Niño</th>
                     <th>Comunidad</th>
                     <th>Técnico</th>
-                    <th>Cargada</th>
-                    <th>Asignada</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
+                    <th>Vencimiento</th> <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach($cartas as $c): ?>
+                <?php 
+                // FECHA HOY (00:00:00) PARA COMPARACIÓN EXACTA
+                $today = new DateTime('today');
+
+                foreach($cartas as $c): 
+                    // 1. Color Badge Tipo
+                    $typeClass = 'type-unknown';
+                    $typeShort = 'Unknown';
+                    if (stripos($c['letter_type'], 'Welcome') !== false) { $typeClass = 'type-welcome'; $typeShort = 'Welcome'; }
+                    elseif (stripos($c['letter_type'], 'Reply') !== false) { $typeClass = 'type-reply'; $typeShort = 'Reply'; }
+                    elseif (stripos($c['letter_type'], 'Thank') !== false) { $typeClass = 'type-thank'; $typeShort = 'Thank You'; }
+
+                    // 2. Color Badge Status
+                    $statusClass = 'badge-pending';
+                    if($c['status'] == 'COMPLETADO' || $c['status'] == 'SYNCED') $statusClass = 'badge-done';
+                    if($c['status'] == 'RETURNED') $statusClass = 'badge-return';
+
+                    // 3. Lógica Cuenta Regresiva (Igual que Dashboard)
+                    $deadline = DateTime::createFromFormat('d-M-Y', $c['technician_due_date']);
+                    
+                    $countdownText = "-";
+                    $countdownClass = "";
+                    $days = 0;
+
+                    if ($deadline) {
+                        $deadline->setTime(0,0,0); // Forzar medianoche
+                        $diff = $today->diff($deadline);
+                        $days = (int)$diff->format('%r%a'); // Entero con signo
+                    }
+
+                    if (in_array($c['status'], ['PENDIENTE', 'ASSIGNED'])) {
+                        if ($days < 0) { 
+                            $countdownText = "⚠️ Vencida (" . abs($days) . "d)"; 
+                            $countdownClass = "cd-red"; 
+                        } elseif ($days == 0) { 
+                            $countdownText = "🔥 ¡HOY!"; 
+                            $countdownClass = "cd-red"; 
+                        } elseif ($days <= 3) { 
+                            $countdownText = "⏳ " . $days . " días"; 
+                            $countdownClass = "cd-orange"; 
+                        } else { 
+                            $countdownText = $days . " días"; 
+                            $countdownClass = "cd-green"; 
+                        }
+                    } elseif (in_array($c['status'], ['COMPLETADO', 'SYNCED'])) {
+                        $countdownText = "✔️ Entregada";
+                        $countdownClass = "cd-green";
+                    }
+                ?>
                 <tr>
                     <td><strong>#<?= htmlspecialchars($c['slip_id']) ?></strong></td>
+                    
+                    <td><span class="badge <?= $typeClass ?>"><?= $typeShort ?></span></td>
+
                     <td><?= htmlspecialchars($c['child_name']) ?></td>
-                    <td><?= htmlspecialchars($c['village']) ?></td>
+                    <td><?= htmlspecialchars($c['village']) ?> <small style="color:#999;">(<?= $c['community_id'] ?>)</small></td>
                     <td style="color:#666;"><?= $c['tech_name'] ? '👤 '.$c['tech_name'] : '<span style="color:#d9534f; font-weight:bold; font-size:11px;">🚫 SIN ASIGNAR</span>' ?></td>
-                    <td style="font-size:12px; color:#888;"><?= date('d/m/Y', strtotime($c['created_at'])) ?></td>
-                    <td style="font-size:12px; color:#888;"><?= !empty($c['assigned_at']) ? date('d/m/Y', strtotime($c['assigned_at'])) : '-' ?></td>
+                    
+                    <td><span class="badge <?= $statusClass ?>"><?= $c['status'] ?></span></td>
+
                     <td>
-                        <?php 
-                            $statusClass = 'badge-pending';
-                            if($c['status'] == 'COMPLETADO' || $c['status'] == 'SYNCED') $statusClass = 'badge-done';
-                            if($c['status'] == 'RETURNED') $statusClass = 'badge-return';
-                        ?>
-                        <span class="badge <?= $statusClass ?>"><?= $c['status'] ?></span>
+                        <div style="font-size:11px; font-weight:bold; color:#555;"><?= $c['technician_due_date'] ?></div>
+                        <div class="countdown <?= $countdownClass ?>"><?= $countdownText ?></div>
                     </td>
+
                     <td>
                         <div style="display:flex; gap:8px;">
                             <button class="btn-icon" style="background:var(--color-accent); color:var(--color-support);" onclick='verTarjeta(<?= json_encode($c) ?>)' title="Ver Ticket">🎫</button>
@@ -338,14 +423,14 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
                 <span id="m_child_nbr" style="color:#888; font-size:0.9em; display:block; margin-bottom:15px;"></span>
                 <div style="background:#f8f9fa; padding:12px; border-radius:6px; font-size:0.9em;">
                     <div style="display:flex; margin-bottom:5px;"><strong style="width:100px; color:#888;">Comunidad:</strong> <span id="m_village"></span></div>
-                    <div style="display:flex; margin-bottom:5px;"><strong style="width:100px; color:#888;">Patrocinador:</strong> <span id="m_contact"></span></div>
+                    <div style="display:flex; margin-bottom:5px;"><strong style="width:100px; color:#888;">Tipo:</strong> <span id="m_type" style="color:var(--color-support); font-weight:bold;"></span></div>
                     <div style="display:flex;"><strong style="width:100px; color:#888;">Técnico:</strong> <span id="m_tech" style="color:var(--color-primary); font-weight:bold;"></span></div>
                 </div>
             </div>
             <div style="padding:15px; text-align:center; border-top:1px solid #eee;">
                 <svg id="barcode"></svg>
                 <div style="margin-top:10px;">
-                    <span style="background:#fff3cd; color:#856404; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:bold;">📅 Límite: <span id="m_date"></span></span>
+                    <span style="background:#fff3cd; color:#856404; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:bold;">📅 Vence: <span id="m_date"></span></span>
                 </div>
             </div>
         </div>
@@ -384,7 +469,7 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
             dom: 'Bfrtip',
             buttons: [ 'excelHtml5', 'csvHtml5' ],
             language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-            order: [[ 0, "desc" ]]
+            order: [[ 0, "desc" ]] // Ordenar por ID descendente
         });
         
         $('.dt-button').css({
@@ -399,8 +484,8 @@ $completadas = count(array_filter($cartas, fn($c) => in_array($c['status'], ['CO
         document.getElementById('m_child_name').innerText = data.child_name;
         document.getElementById('m_child_nbr').innerText = "N° " + data.child_code;
         document.getElementById('m_village').innerText = data.village;
-        document.getElementById('m_contact').innerText = data.contact_name ? data.contact_name : "N/D";
-        document.getElementById('m_date').innerText = data.due_date;
+        document.getElementById('m_type').innerText = data.letter_type; 
+        document.getElementById('m_date').innerText = data.technician_due_date; 
         document.getElementById('m_tech').innerText = data.tech_name ? data.tech_name : "Sin asignar";
         JsBarcode("#barcode", data.slip_id, { format: "CODE128", lineColor: "#333", width: 2, height: 40, displayValue: true, fontSize: 14 });
         modal.style.display = "block";

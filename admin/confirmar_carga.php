@@ -13,13 +13,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['json_paquete'])) {
     try {
         $pdo->beginTransaction();
 
+        // AQUÍ AGREGAMOS LOS CAMPOS NUEVOS AL INSERT
         $sql = "INSERT INTO letters (
                     local_id,
                     slip_id, 
+                    letter_type,       /* NUEVO */
+                    community_id,      /* NUEVO */
                     child_code, 
                     child_name, 
                     village, 
                     due_date, 
+                    technician_due_date, /* NUEVO */
+                    request_date,        /* NUEVO */
                     sex, 
                     birthdate, 
                     contact_id, 
@@ -30,10 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['json_paquete'])) {
                 ) VALUES (
                     NULL, 
                     :slip_id, 
+                    :letter_type,
+                    :community_id,
                     :child_code, 
                     :child_name, 
                     :village, 
                     :due_date, 
+                    :tech_date,
+                    :req_date,
                     :sex, 
                     :birthdate, 
                     :contact_id, 
@@ -44,28 +53,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['json_paquete'])) {
                 ) ON DUPLICATE KEY UPDATE 
                     child_name = VALUES(child_name),
                     due_date   = VALUES(due_date),
+                    technician_due_date = VALUES(technician_due_date),
                     updated_at = NOW()";
 
         $stmt = $pdo->prepare($sql);
 
         foreach ($datos as $row) {
-            // Limpiamos y recortamos los datos a 250 caracteres por seguridad
             $stmt->execute([
                 ':slip_id'      => trim($row['slip_id']),
+                ':letter_type'  => trim($row['letter_type'] ?? 'Unknown'),
+                ':community_id' => trim($row['community_id'] ?? ''),
                 ':child_code'   => trim($row['child_nbr']),
                 ':child_name'   => substr(trim($row['child_name']), 0, 250),
                 ':village'      => substr(trim($row['village']), 0, 250),
                 ':due_date'     => trim($row['due_date']),
-                ':sex'          => trim($row['sex']),
-                ':birthdate'    => trim($row['birthdate']),
-                ':contact_id'   => trim($row['contact_id']),
-                ':contact_name' => substr(trim($row['contact_name']), 0, 250), // 👈 Recorte preventivo
-                ':ia_id'        => trim($row['ia_id'])
+                ':tech_date'    => trim($row['tech_date'] ?? ''),
+                ':req_date'     => trim($row['request_date'] ?? ''),
+                ':sex'          => trim($row['sex'] ?? ''),
+                ':birthdate'    => trim($row['birthdate'] ?? ''),
+                ':contact_id'   => trim($row['contact_id'] ?? ''),
+                ':contact_name' => substr(trim($row['contact_name'] ?? ''), 0, 250),
+                ':ia_id'        => trim($row['ia_id'] ?? '')
             ]);
         }
 
         $pdo->commit();
         
+        // Redirigir al éxito
         header("Location: revisar_carga.php?status=success&count=" . count($datos));
         exit;
 
@@ -79,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['json_paquete'])) {
         exit;
     }
 } else {
-    header("Location: cargar_pdf.php");
+    header("Location: subir.php");
     exit;
 }
+?>
