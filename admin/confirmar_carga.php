@@ -10,6 +10,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['json_paquete'])) {
         die("Error: No se recibieron datos válidos.");
     }
 
+    // Validate the complete batch before writing any row.
+    foreach ($datos as $row) {
+        if (!is_array($row) || !preg_match('/^\d+$/', trim($row['slip_id'] ?? '')) ||
+            !preg_match('/^\d+$/', trim($row['child_nbr'] ?? '')) ||
+            trim($row['child_name'] ?? '') === '' || trim($row['village'] ?? '') === '' ||
+            !preg_match('/^\d+$/', trim($row['community_id'] ?? ''))) {
+            http_response_code(422);
+            exit('Complete los datos requeridos de cada ticket antes de guardar. No se guardaron cartas.');
+        }
+    }
+
     try {
         $pdo->beginTransaction();
 

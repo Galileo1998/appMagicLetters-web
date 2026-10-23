@@ -14,6 +14,7 @@ require '../db_config.php';
 ini_set('display_errors', 0); 
 error_reporting(E_ALL);
 require '../vendor/autoload.php';
+require_once __DIR__ . '/pdf_ticket_reader.php';
 
 $mensaje_error = "";
 $mostrar_formulario = true;
@@ -25,28 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file'])) {
         try {
             $parser = new \Smalot\PdfParser\Parser();
             $pdf = $parser->parseFile($_FILES['pdf_file']['tmp_name']);
-            $cleanText = preg_replace('/\s+/', ' ', $pdf->getText());
-
-            // --- REGEX ORIGINALES ---
-            preg_match_all('/Slip Id:\s*(\d+)/i', $cleanText, $matches_slip);
-            preg_match_all('/Child Name:\s*(.*?)(?=\s*Contact Id:|\s*Age:|\s*Gender:|$)/i', $cleanText, $matches_name);
-            preg_match_all('/Child Nbr:\s*(\d+)/i', $cleanText, $matches_nbr);
-            preg_match_all('/Village:\s*(.*?)(?=\s*Child Name:|\s*Case:|$)/i', $cleanText, $matches_village);
-            preg_match_all('/Due Date:\s*([\d\-A-Za-z]+)/i', $cleanText, $matches_date);
-            
-            preg_match_all('/Sex:\s*([MF])/i', $cleanText, $matches_sex);
-            preg_match_all('/Birthdate:\s*([\d\-A-Za-z]+)/i', $cleanText, $matches_birth);
-            preg_match_all('/Contact Id:\s*(\d+)/i', $cleanText, $matches_cid);
-            preg_match_all('/Contact Name:\s*(.*?)(?=\s*Case:|\s*Child Nbr:|$)/i', $cleanText, $matches_cname);
-            preg_match_all('/IA ID:\s*(.*?)(?=\s*Contact Name:|\s*-\s*USA|$)/i', $cleanText, $matches_ia);
-
-            // --- REGEX NUEVOS ---
-            preg_match_all('/(Child Welcome Letter|Child Reply Letter|Thank You Letter)/i', $cleanText, $matches_type);
-            preg_match_all('/Community Id:\s*(\d+)/i', $cleanText, $matches_comm);
-            preg_match_all('/Date Request:\s*([\d\-A-Za-z]+)/i', $cleanText, $matches_req);
-
-            $slips = $matches_slip[1];
-            $count = count($slips);
+            $tickets = PdfTicketReader::read($pdf);
+            $slips = array_column($tickets, 'slip_id');
+            $count = count($tickets);
 
             // ---------------------------------------------------------
             // NUEVO: VERIFICAR DUPLICADOS EN BASE DE DATOS
@@ -61,17 +43,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file'])) {
                 $existing_slips = $stmtCheck->fetchAll(PDO::FETCH_COLUMN); // Array simple con los IDs que ya existen
             }
 
-            for ($i = 0; $i < $count; $i++) {
+            foreach ($tickets as $ticket) {
                 
-                $slipId = trim($slips[$i]);
+                $slipId = $ticket['slip_id'];
                 
                 // Verificar si este ID específico ya existe
                 $isDuplicate = in_array($slipId, $existing_slips);
 
                 // Obtener Datos Nuevos
-                $lType = trim($matches_type[1][$i] ?? 'Unknown');
-                $commId = trim($matches_comm[1][$i] ?? '');
-                $reqDate = trim($matches_req[1][$i] ?? '');
+                $lType = $ticket['letter_type'];
+                $commId = $ticket['community_id'];
+                $reqDate = $ticket['request_date'];
                 
                 // Calcular Fecha Técnico (Zona Horaria Local y Medianoche)
                 $daysToAdd = 7; 
@@ -88,15 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file'])) {
                 $rows[] = [
                     'slip_id'      => $slipId,
                     'is_duplicate' => $isDuplicate, // Bandera de duplicado
-                    'child_nbr'    => trim($matches_nbr[1][$i] ?? ''),
-                    'child_name'   => trim($matches_name[1][$i] ?? ''),
-                    'village'      => trim($matches_village[1][$i] ?? ''),
-                    'due_date'     => trim($matches_date[1][$i] ?? ''),
-                    'sex'          => trim($matches_sex[1][$i] ?? ''),
-                    'birthdate'    => trim($matches_birth[1][$i] ?? ''),
-                    'contact_id'   => trim($matches_cid[1][$i] ?? ''),
-                    'contact_name' => trim($matches_cname[1][$i] ?? ''),
-                    'ia_id'        => trim($matches_ia[1][$i] ?? ''),
+                    'child_nbr'    => $ticket['child_nbr'],
+                    'child_name'   => $ticket['child_name'],
+                    'village'      => $ticket['village'],
+                    'due_date'     => $ticket['due_date'],
+                    'sex'          => $ticket['sex'],
+                    'birthdate'    => $ticket['birthdate'],
+                    'contact_id'   => $ticket['contact_id'],
+                    'contact_name' => $ticket['contact_name'],
+                    'ia_id'        => $ticket['ia_id'],
                     'letter_type'  => $lType,
                     'community_id' => $commId,
                     'request_date' => $reqDate,
@@ -105,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file'])) {
             }
             $mostrar_formulario = false;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $mensaje_error = "Error al leer el PDF: " . $e->getMessage();
         }
     } elseif ($_FILES['pdf_file']['error'] === UPLOAD_ERR_INI_SIZE) {
@@ -311,6 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file'])) {
                     let filas = document.querySelectorAll('.data-row');
                     let datos = [];
                     let ignorados = 0;
+                    let incompletos = false;
                     
                     filas.forEach(row => {
                         // VERIFICAR SI ES DUPLICADO
@@ -322,6 +305,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file'])) {
                             return; // SALTAR ESTA ITERACIÓN (No se agrega al array)
                         }
 
+                        if (!/^\d+$/.test(slip) || !/^\d+$/.test(row.querySelector('.d-nbr').value.trim()) ||
+                            !row.querySelector('.d-name').value.trim() || !row.querySelector('.d-village').value.trim() ||
+                            !/^\d+$/.test(row.querySelector('.d-comm').value.trim())) {
+                            incompletos = true;
+                            return;
+                        }
                         if(slip) {
                             datos.push({
                                 slip_id:      slip,
@@ -342,6 +331,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file'])) {
                         }
                     });
                     
+                    if (incompletos) {
+                        alert('Complete Slip ID, número y nombre del niño, comunidad e ID de comunidad en cada fila antes de guardar.');
+                        return;
+                    }
                     if(datos.length === 0) {
                         alert("No hay cartas nuevas para guardar." + (ignorados > 0 ? "\n(" + ignorados + " duplicados ignorados)" : ""));
                         return;
