@@ -29,7 +29,7 @@ function ml_render_new_letter_content(int $savedVersion, string $message, array 
     $html .= '<h3>CONTENIDO</h3>';
     $answered = [];
     foreach ($answers as $answer) {
-        if (!is_array($answer) || trim((string) ($answer['answer_text'] ?? '')) === '') {
+        if (!is_array($answer) || trim((string) ($answer['question_text'] ?? '')) === '') {
             continue;
         }
         $answered[] = $answer;
@@ -39,7 +39,10 @@ function ml_render_new_letter_content(int $savedVersion, string $message, array 
         $html .= '<section class="ml-questions-v2" aria-label="' . $label . '"><h4>' . $label . '</h4><dl>';
         foreach ($answered as $answer) {
             $html .= '<div class="ml-answer-v2"><dt>' . ml_presentation_text($answer['question_text'] ?? '') . '</dt>';
-            $html .= '<dd>' . nl2br(ml_presentation_text($answer['answer_text'])) . '</dd></div>';
+            if (trim((string)($answer['answer_text'] ?? '')) !== '') {
+                $html .= '<dd>' . nl2br(ml_presentation_text($answer['answer_text'])) . '</dd>';
+            }
+            $html .= '</div>';
         }
         $html .= '</dl></section>';
     }
@@ -54,4 +57,12 @@ function ml_find_presentation(PDO $pdo, int $letterId): ?int
     $stmt->execute([$letterId]);
     $value = $stmt->fetchColumn();
     return $value === false ? null : (int) $value;
+}
+
+/** Only the explicit selected-prompt mode may omit a separate response, and only in V2. */
+function ml_should_store_question(int $version, array $answer): bool
+{
+    if ((int)($answer['question_id'] ?? 0) <= 0 || trim((string)($answer['question_text'] ?? '')) === '') return false;
+    if (trim((string)($answer['answer_text'] ?? '')) !== '') return true;
+    return $version === 2 && in_array($answer['answer_in_message'] ?? null, [true, 1, '1'], true);
 }

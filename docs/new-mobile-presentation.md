@@ -27,3 +27,9 @@ La tabla `letter_presentation_versions` comenzó vacía: no hubo conversión ni 
 - El endpoint temporal autenticado de demostración se retiró de public_html al terminar.
 
 Las pruebas no incluyeron un envío real desde la APK actualizada ni mediciones de tacto en dispositivos físicos; quedan para validar la app móvil al distribuirla.
+
+## Ajuste 1.2.1: selección sin respuesta separada
+
+`deployments/20261106-selected-question.patch` aplica sobre los módulos instalados del primer despliegue. La app guarda una selección con `answer_in_message=1`, `answer_text` vacío y el contenido completo exclusivamente en `message`. La API acepta esa selección vacía solo en V2 y con marca explícita; las preguntas no respondidas de versiones anteriores siguen ignorándose. Revisión/PDF muestran la pregunta encima del texto sin duplicarlo y edición no agrega otro campo de respuesta para esa selección.
+
+Instalado en cPanel el 6 de noviembre de 2026, con respaldo privado en `patrocinio-seleccion-20261106/original`. Los hashes antes/después de las 21 cartas existentes y sus adjuntos fueron idénticos. Sintaxis PHP y pruebas de selección sin respuesta, compatibilidad V1 y clientes anteriores correctas. No migra ni modifica ninguna carta enviada.
