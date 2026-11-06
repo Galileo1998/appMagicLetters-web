@@ -1,25 +1,29 @@
-# Integración en la versión vigente de Patrocinio
+# Presentación de cartas del nuevo flujo móvil
 
-Estos módulos aún no están conectados al panel de producción. La versión `main` de este repositorio es anterior al panel observado el 6 de noviembre de 2026. No sustituir `api/upload_letter.php`, `admin/ver_carta.php` ni los generadores PDF vigentes por sus copias antiguas de este repositorio.
+Instalado en `public_html/patrocinio` el 6 de noviembre de 2026, sobre los archivos vigentes obtenidos de cPanel. El main de este repositorio es anterior a producción: no sustituir archivos completos del servidor por las copias antiguas del repositorio.
 
-## Contrato móvil
+## Archivos e instalación
 
-La nueva app envía el mismo PNG, mensaje, respuestas y descripciones. Añade `content_version`: vale 2 solo si el mensaje y sus respuestas se guardaron mediante el flujo unificado. Las cartas locales previas conservan 1. Las herramientas, colores y plantillas ya quedan incorporadas en el PNG; no hay que reconstruir ni recolorear el dibujo en PHP.
+`deployments/20261106-production.patch` contiene únicamente las modificaciones de los cuatro archivos actuales de producción: recepción API, revisión, edición y generación MCS/PDF. Los módulos nuevos están en `lib/letter_presentation.php` y `.css`; la tabla aditiva está en `db/20261106_letter_presentation.sql`. La instalación ya se realizó. No volver a aplicar el parche sin comprobar su estado. No se descargaron configuraciones ni credenciales.
 
-## Cartas ya enviadas
+Se guardaron copias originales fuera de public_html, en el directorio privado `patrocinio-cambio-20261106/original`. El registro `deployed.json` del mismo directorio contiene los hashes antes/después y de los archivos instalados. Para revertir el renderizado se pueden restaurar esos cuatro originales; conservar la tabla de versiones para futuras reinstalaciones.
 
-Conservar contenido, adjuntos, preguntas históricas, estado, formato y PDF. No regenerar ni convertir registros previos. No aplicar CSS de V2 a las plantillas antiguas. Una reintentona de envío no puede convertir una carta histórica a V2.
+## Contrato y conservación del histórico
 
-## Puntos de integración pendientes sobre el código actual
+La app nueva envía PNG, mensaje, respuestas y descripciones como antes, añadiendo `content_version=2` únicamente tras guardar el flujo unificado. Cartas locales previas conservan 1. La nueva app aún requiere compilar e instalar su APK.
 
-1. Dentro de la transacción autenticada de recepción, obtener y bloquear el registro de la carta ANTES de actualizarlo. Determinar si ya fue recibida por sus datos/fecha de recepción y adjuntos existentes; no basarse solo en el estado, porque una carta recibida puede estar devuelta.
-2. Almacenar una versión de presentación inmutable por carta, en una tabla o metadato aditivo. Las cartas sin marca se consideran V1. No actualizar en masa el histórico. Llamar a `ml_presentation_version($versionGuardada, $_POST['content_version'] ?? null, $yaRecibida)` para calcularla; escribir la marca junto con el envío nuevo en la misma transacción. Ante reintentos conservar siempre la marca inicial y la idempotencia actual por submission_id.
-3. En revisión, edición y PDF, consultar esa misma marca guardada. Para V1 ejecutar el renderizado actual sin ningún cambio. Para V2 mostrar el encabezado CONTENIDO, debajo la pregunta seleccionada (o preguntas respondidas) con su respuesta, y después el texto completo sin recortes mediante `ml_render_new_letter_content`. No consultar los textos actuales del catálogo de preguntas para reconstruir respuestas anteriores.
-4. Incluir `letter_presentation.css` solo en la rama V2. Los dibujos se muestran con `object-fit: contain`, sus colores originales, proporción completa y descripción; reutilizar el manejo seguro de adjuntos actual.
-5. En el PDF MCS aplicar la misma selección V1/V2; no regenerar PDFs de cartas ya enviadas. Mantener las protecciones actuales de aprobación, devolución y autorización.
+La API conserva autenticación, validación, auditoría e idempotencia existentes. Bloquea la carta en la transacción, rechaza las aprobadas/SYNCED, y resuelve la versión antes de cambiar datos. La versión inicial es inmutable: una carta con recepción, mensaje o adjuntos previos permanece V1 incluso si un reintento pide V2. Para una primera recepción V2 se guardan la marca y las respuestas seleccionadas en la misma transacción.
 
-## Comprobación
+La tabla `letter_presentation_versions` comenzó vacía: no hubo conversión ni actualización masiva. Las cartas sin marca usan exactamente el renderizador y estilos anteriores. No se regeneraron sus PDFs. La marca V2 muestra CONTENIDO, pregunta seleccionada con su respuesta y luego texto completo, en revisión, edición y PDF. Sus estilos están limitados a V2 y no recortan mensaje ni descripción del dibujo.
 
-`php tests/letter_presentation_test.php`
+## Verificación realizada
 
-Antes de instalar: obtener los archivos vigentes de recepción, revisión, edición y generación MCS/PDF. Verificar con datos sintéticos el envío V2, un reintento, una carta devuelta y una carta V1 aprobada; la última debe conservar HTML/PDF y adjuntos idénticos. Ningún archivo de datos reales forma parte de esta propuesta.
+- Sintaxis PHP de todos los módulos modificados correcta.
+- `php tests/letter_presentation_test.php`: conservación de versión, orden, texto completo y escape HTML.
+- Captura de HTML con `tests/capture_mcs_html.php`: la salida PDF/HTML V1 del módulo original y del modificado resultó idéntica byte por byte. Ejecutar pasando la ruta del módulo MCS y opcionalmente la versión 1 o 2; requiere las respectivas copias del módulo.
+- Dompdf real del servidor generó un PDF V2 con datos ficticios, 25 repeticiones de dos párrafos y marcador final: orden correcto y texto íntegro, revisado visualmente y con extracción de texto.
+- Hash antes/después idéntico para las 20 cartas históricas recibidas y sus respuestas, recibos y adjuntos, incluidos los bytes de archivos. Ninguna carta real se utilizó para crear envíos de prueba.
+- Una carta histórica aprobada mostró la misma pantalla tras recargar.
+- El endpoint temporal autenticado de demostración se retiró de public_html al terminar.
+
+Las pruebas no incluyeron un envío real desde la APK actualizada ni mediciones de tacto en dispositivos físicos; quedan para validar la app móvil al distribuirla.

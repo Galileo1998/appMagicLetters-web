@@ -1,0 +1,179 @@
+--- a/api/upload_letter.php
++++ b/api/upload_letter.php
+@@ -2,6 +2,7 @@
+ declare(strict_types=1);
+ 
+ require_once __DIR__ . '/bootstrap.php';
++require_once dirname(__DIR__) . '/lib/letter_presentation.php';
+ require_method('POST');
+ $technician = require_api_technician($pdo);
+ 
+@@ -163,12 +164,28 @@
+ $oldFiles = [];
+ $pdo->beginTransaction();
+ try {
++    $presentationLetter = $pdo->prepare('SELECT status, final_message FROM letters WHERE id=? AND tech_id=? FOR UPDATE');
++    $presentationLetter->execute([$letterId, (int)$technician['id']]);
++    $presentationBefore = $presentationLetter->fetch(PDO::FETCH_ASSOC);
++    if (!$presentationBefore || $presentationBefore['status'] === 'SYNCED') {
++        throw new InvalidArgumentException('La carta ya fue aprobada y no admite un nuevo envío.');
++    }
++    $priorReceipt = $pdo->prepare('SELECT COUNT(*) FROM sync_receipts WHERE letter_id=?');
++    $priorReceipt->execute([$letterId]);
++    $hadReceipt = (int)$priorReceipt->fetchColumn() > 0;
+     if ($existingReceiptId > 0) {
+         $pdo->prepare('DELETE FROM sync_receipts WHERE id = ?')->execute([$existingReceiptId]);
+     }
+     $oldStmt = $pdo->prepare('SELECT file_path FROM letter_attachments WHERE letter_id = ?');
+     $oldStmt->execute([$letterId]);
+     $oldFiles = $oldStmt->fetchAll(PDO::FETCH_COLUMN);
++    $storedPresentation = ml_find_presentation($pdo, (int)$letterId);
++    $alreadyReceived = $hadReceipt || count($oldFiles) > 0 || trim((string)$presentationBefore['final_message']) !== '';
++    $presentationVersion = ml_presentation_version($storedPresentation, $_POST['content_version'] ?? null, $alreadyReceived);
++    if ($presentationVersion === 2 && $storedPresentation === null) {
++        $pdo->prepare('INSERT INTO letter_presentation_versions (letter_id, content_version) VALUES (?, 2)')
++            ->execute([$letterId]);
++    }
+     $pdo->prepare('DELETE FROM letter_attachments WHERE letter_id = ?')->execute([$letterId]);
+ 
+     $pdo->prepare("UPDATE letters SET final_message=?, photo_required=?, status='COMPLETADO', return_reason=NULL, updated_at=NOW() WHERE id=? AND tech_id=?")
+@@ -208,6 +225,9 @@
+             ->execute([$letterId, 'uploads/' . $name, $description]);
+     }
+ 
++    if ($presentationVersion === 2) {
++        $pdo->prepare('DELETE FROM letter_answers WHERE letter_id=?')->execute([$letterId]);
++    }
+     $answerStmt = $pdo->prepare(
+         'INSERT INTO letter_answers (letter_id, question_id, question_text, answer_text)
+          VALUES (?, ?, ?, ?)
+--- a/admin/ver_carta.php
++++ b/admin/ver_carta.php
+@@ -6,6 +6,7 @@
+ require '../db_config.php';
+ require_once '../config/audit.php';
+ require_once '../config/mcs_pdf.php';
++require_once '../lib/letter_presentation.php';
+ 
+ // 2. VALIDAR ID CARTA
+ if (!isset($_GET['id'])) {
+@@ -99,6 +100,7 @@
+     if ($adj['file_type'] == 'PHOTO')   $fotos_data[] = $adj;
+ }
+ 
++$presentationVersion = ml_find_presentation($pdo, (int)$letter_id) ?? 1;
+ $mensaje_real = $carta['final_message'] ?? ''; 
+ $stmt_answers = $pdo->prepare("SELECT question_text, answer_text FROM letter_answers WHERE letter_id = ? ORDER BY id");
+ $stmt_answers->execute([$letter_id]);
+@@ -118,6 +120,7 @@
+     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+     
++    <?php if ($presentationVersion === 2): ?><link rel="stylesheet" href="../lib/letter_presentation.css"><?php endif; ?>
+     <style>
+         :root {
+             --color-primary: #46B094; --color-support: #34859B;
+@@ -374,6 +377,9 @@
+                     </div>
+                 </div>
+ 
++                <?php if ($presentationVersion === 2): ?>
++                <?= ml_render_new_letter_content(2, (string)$mensaje_real, $respuestas) ?>
++                <?php else: ?>
+                 <div class="sec-title">CONTENIDO</div>
+                 <div class="letter-body">
+                     <?= !empty($mensaje_real) ? nl2br(htmlspecialchars($mensaje_real)) : '<i style="color:#ccc;">[Sin texto digitalizado]</i>' ?>
+@@ -389,6 +395,8 @@
+                         <?php endforeach; ?></div>
+                     <?php endforeach; ?>
+                 </div>
++                <?php endif; ?>
++
+                 <?php endif; ?>
+ 
+                 <div class="sec-title">ADJUNTOS</div>
+--- a/admin/editar_carta.php
++++ b/admin/editar_carta.php
+@@ -6,6 +6,7 @@
+ require_admin();
+ require '../db_config.php';
+ require_once '../config/audit.php';
++require_once '../lib/letter_presentation.php';
+ 
+ $letterId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT)
+     ?: filter_input(INPUT_POST, 'letter_id', FILTER_VALIDATE_INT);
+@@ -201,6 +202,7 @@
+ $stmt = $pdo->prepare('SELECT id, question_text, answer_text FROM letter_answers WHERE letter_id = ? ORDER BY id');
+ $stmt->execute([$letterId]);
+ $answers = $stmt->fetchAll(PDO::FETCH_ASSOC);
++$presentationVersion = ml_find_presentation($pdo, (int)$letterId) ?? 1;
+ ?>
+ <!DOCTYPE html>
+ <html lang="es">
+@@ -234,11 +236,19 @@
+     <form id="edit-form" method="post" enctype="multipart/form-data">
+         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+         <input type="hidden" name="letter_id" value="<?= $letterId ?>">
++        <?php if ($presentationVersion === 2): ?>
++        <section class="card"><h2>CONTENIDO</h2>
++            <h3>Pregunta seleccionada</h3>
++            <?php foreach ($answers as $answer): ?><div class="answer"><strong><?= htmlspecialchars((string)$answer['question_text']) ?></strong><textarea name="answers[<?= (int)$answer['id'] ?>]"><?= htmlspecialchars((string)$answer['answer_text']) ?></textarea></div><?php endforeach; ?>
++            <h3>Texto completo</h3><textarea name="final_message" placeholder="Contenido de la carta..."><?= htmlspecialchars((string)($letter['final_message'] ?? '')) ?></textarea>
++        </section>
++        <?php else: ?>
+         <section class="card"><h2><i class="fa-solid fa-envelope-open-text"></i> Mensaje de la carta</h2><textarea name="final_message" placeholder="Contenido de la carta..."><?= htmlspecialchars((string)($letter['final_message'] ?? '')) ?></textarea></section>
+         <section class="card"><h2><i class="fa-solid fa-list-check"></i> Preguntas y respuestas</h2>
+             <?php if (!$answers): ?><p class="muted">Esta carta no tiene respuestas registradas.</p><?php endif; ?>
+             <?php foreach ($answers as $answer): ?><div class="answer"><strong><?= htmlspecialchars((string)$answer['question_text']) ?></strong><textarea name="answers[<?= (int)$answer['id'] ?>]"><?= htmlspecialchars((string)$answer['answer_text']) ?></textarea></div><?php endforeach; ?>
+         </section>
++        <?php endif; ?>
+         <section class="card"><h2><i class="fa-solid fa-images"></i> Adjuntos existentes</h2><div class="media-grid">
+             <?php if (!$attachments): ?><p class="muted">No hay imágenes adjuntas.</p><?php endif; ?>
+             <?php foreach ($attachments as $attachment): ?><div class="media"><img src="adjunto.php?id=<?= (int)$attachment['id'] ?>" alt="Adjunto"><span class="label"><?= $attachment['file_type'] === 'DRAWING' ? 'Dibujo' : 'Fotografía' ?></span><textarea name="descriptions[<?= (int)$attachment['id'] ?>]" placeholder="Descripción"><?= htmlspecialchars((string)($attachment['description'] ?? '')) ?></textarea><?php if(($_SESSION['rol'] ?? '')==='ADMIN'): ?><label class="delete"><input type="checkbox" name="delete_attachment[]" value="<?= (int)$attachment['id'] ?>"> Eliminar este archivo</label><?php endif; ?></div><?php endforeach; ?>
+--- a/config/mcs_pdf.php
++++ b/config/mcs_pdf.php
+@@ -1,5 +1,6 @@
+ <?php
+ declare(strict_types=1);
++require_once dirname(__DIR__) . '/lib/letter_presentation.php';
+ 
+ /**
+  * Conserva los ceros iniciales del codigo MCS y elimina caracteres que Windows
+@@ -58,6 +59,7 @@
+     $stmt->execute([$letterId]);
+ 
+     return [
++        'presentation_version' => ml_find_presentation($pdo, $letterId) ?? 1,
+         'letter' => $letter,
+         'attachments' => $attachments,
+         'answers' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+@@ -112,6 +114,15 @@
+         }
+     }
+ 
++    $presentationVersion = (int)($document['presentation_version'] ?? 1);
++    $contentHtml = $presentationVersion === 2
++        ? ml_render_new_letter_content(2, (string)($letter['final_message'] ?? ''), $answers)
++        : '<h3>CONTENIDO</h3><div class="message">' . nl2br($escape($letter['final_message'] ?? '')) . '</div>' . $answersHtml;
++    $extraCss = $presentationVersion === 2
++        ? (string)file_get_contents(dirname(__DIR__) . '/lib/letter_presentation.css')
++          . '.attachment{height:auto;overflow:visible}.description{max-height:none;overflow:visible}table.attachments td{height:auto}.ml-content-v2 .ml-message-v2{font-family:DejaVu Serif,serif}'
++        : '';
++
+     $childIdentifier = $letter['child_nbr'] ?: $letter['child_code'];
+     $html = '<!doctype html><html lang="es"><head><meta charset="UTF-8"><style>
+         @page { size: letter portrait; margin: .42in; }
+@@ -134,11 +145,10 @@
+         .caption { color: #777; font-size: 7pt; font-weight: bold; }
+         .description { text-align: left; margin-top: 3px; line-height: 1.15; max-height: .38in; overflow: hidden; }
+         .mcs { color: #777; font-size: 8pt; margin-top: 3px; }
+-    </style></head><body>'
++    ' . $extraCss . '</style></head><body>'
+         . '<header><div class="type">' . $escape($letter['letter_type'] ?: 'Carta') . '<div class="mcs">MCS: ' . $escape($letter['slip_id']) . '</div></div>'
+         . '<div class="child"><strong>' . $escape($letter['child_name']) . '</strong><br>ID: ' . $escape($childIdentifier) . '<br>' . $escape($letter['village']) . '</div></header>'
+-        . '<h3>CONTENIDO</h3><div class="message">' . nl2br($escape($letter['final_message'] ?? '')) . '</div>'
+-        . $answersHtml
++        . $contentHtml
+         . '<h3>ADJUNTOS</h3>'
+         . ($attachmentsHtml !== '' ? '<table class="attachments">' . $attachmentsHtml . '</table>' : '<em>Sin adjuntos.</em>')
+         . '</body></html>';

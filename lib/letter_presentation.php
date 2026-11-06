@@ -47,3 +47,11 @@ function ml_render_new_letter_content(int $savedVersion, string $message, array 
     $html .= '<div class="ml-message-v2">' . nl2br(ml_presentation_text($message)) . '</div></section></section>';
     return $html;
 }
+
+function ml_find_presentation(PDO $pdo, int $letterId): ?int
+{
+    $stmt = $pdo->prepare('SELECT content_version FROM letter_presentation_versions WHERE letter_id=?');
+    $stmt->execute([$letterId]);
+    $value = $stmt->fetchColumn();
+    return $value === false ? null : (int) $value;
+}
