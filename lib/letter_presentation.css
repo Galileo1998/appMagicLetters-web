@@ -1,0 +1,14 @@
+/* Every rule is scoped to V2; historical letters keep their existing print CSS. */
+.ml-content-v2 { color: #222; overflow-wrap: anywhere; }
+.ml-content-v2 h3 { color: #34859b; border-bottom: 1px solid #d9e4e2; padding-bottom: .5rem; }
+.ml-content-v2 h4 { font-size: .95rem; margin: 1.2rem 0 .5rem; }
+.ml-content-v2 dl { margin: 0; }
+.ml-content-v2 .ml-answer-v2 { border-left: 3px solid #46b094; padding: .5rem .8rem; margin-bottom: .6rem; }
+.ml-content-v2 dt { font-weight: 700; }
+.ml-content-v2 dd { margin: .4rem 0 0; line-height: 1.6; }
+.ml-content-v2 .ml-message-v2 { line-height: 1.7; }
+@media print {
+  .ml-content-v2 h3, .ml-content-v2 h4, .ml-content-v2 dt { break-after: avoid; }
+  .ml-content-v2 .ml-answer-v2 { orphans: 3; widows: 3; }
+  .ml-content-v2 .ml-message-v2 { orphans: 3; widows: 3; }
+}

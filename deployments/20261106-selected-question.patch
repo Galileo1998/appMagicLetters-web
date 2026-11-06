@@ -1,0 +1,57 @@
+--- a/lib/letter_presentation.php
++++ b/lib/letter_presentation.php
+@@ -29,7 +29,7 @@
+     $html .= '<h3>CONTENIDO</h3>';
+     $answered = [];
+     foreach ($answers as $answer) {
+-        if (!is_array($answer) || trim((string) ($answer['answer_text'] ?? '')) === '') {
++        if (!is_array($answer) || trim((string) ($answer['question_text'] ?? '')) === '') {
+             continue;
+         }
+         $answered[] = $answer;
+@@ -39,7 +39,10 @@
+         $html .= '<section class="ml-questions-v2" aria-label="' . $label . '"><h4>' . $label . '</h4><dl>';
+         foreach ($answered as $answer) {
+             $html .= '<div class="ml-answer-v2"><dt>' . ml_presentation_text($answer['question_text'] ?? '') . '</dt>';
+-            $html .= '<dd>' . nl2br(ml_presentation_text($answer['answer_text'])) . '</dd></div>';
++            if (trim((string)($answer['answer_text'] ?? '')) !== '') {
++                $html .= '<dd>' . nl2br(ml_presentation_text($answer['answer_text'])) . '</dd>';
++            }
++            $html .= '</div>';
+         }
+         $html .= '</dl></section>';
+     }
+@@ -55,3 +58,11 @@
+     $value = $stmt->fetchColumn();
+     return $value === false ? null : (int) $value;
+ }
++
++/** Only the explicit selected-prompt mode may omit a separate response, and only in V2. */
++function ml_should_store_question(int $version, array $answer): bool
++{
++    if ((int)($answer['question_id'] ?? 0) <= 0 || trim((string)($answer['question_text'] ?? '')) === '') return false;
++    if (trim((string)($answer['answer_text'] ?? '')) !== '') return true;
++    return $version === 2 && in_array($answer['answer_in_message'] ?? null, [true, 1, '1'], true);
++}
+--- a/api/upload_letter.php
++++ b/api/upload_letter.php
+@@ -237,7 +237,7 @@
+         $questionId = (int)($answer['question_id'] ?? 0);
+         $questionText = trim((string)($answer['question_text'] ?? ''));
+         $answerText = trim((string)($answer['answer_text'] ?? ''));
+-        if ($questionId > 0 && $questionText !== '' && $answerText !== '') {
++        if (ml_should_store_question($presentationVersion, $answer)) {
+             $answerStmt->execute([$letterId, $questionId, $questionText, $answerText]);
+         }
+     }
+--- a/admin/editar_carta.php
++++ b/admin/editar_carta.php
+@@ -239,7 +239,7 @@
+         <?php if ($presentationVersion === 2): ?>
+         <section class="card"><h2>CONTENIDO</h2>
+             <h3>Pregunta seleccionada</h3>
+-            <?php foreach ($answers as $answer): ?><div class="answer"><strong><?= htmlspecialchars((string)$answer['question_text']) ?></strong><textarea name="answers[<?= (int)$answer['id'] ?>]"><?= htmlspecialchars((string)$answer['answer_text']) ?></textarea></div><?php endforeach; ?>
++            <?php foreach ($answers as $answer): ?><div class="answer"><strong><?= htmlspecialchars((string)$answer['question_text']) ?></strong><?php if (trim((string)$answer['answer_text']) !== ''): ?><textarea name="answers[<?= (int)$answer['id'] ?>]"><?= htmlspecialchars((string)$answer['answer_text']) ?></textarea><?php endif; ?></div><?php endforeach; ?>
+             <h3>Texto completo</h3><textarea name="final_message" placeholder="Contenido de la carta..."><?= htmlspecialchars((string)($letter['final_message'] ?? '')) ?></textarea>
+         </section>
+         <?php else: ?>
